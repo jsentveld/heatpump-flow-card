@@ -202,6 +202,7 @@ pump_group:                  # tank -> house supply
   flow_temp: sensor.mixed_flow
   return_temp: sensor.house_return
   target_temp: sensor.mixed_flow_target
+  outside_temp: sensor.outdoor                # beside the pump
 heatpump: { ... }            # straight onto the house supply, never the tank
 solar_hx:                    # optional
   name: Solar heat exchanger
@@ -218,6 +219,7 @@ circuits:
 | --- | --- | --- |
 | `pump_group` | `pump`, `state_entity` | Whether it runs - and so whether the tank feeds the house |
 | | `flow_temp`, `return_temp`, `target_temp` | Mixed flow, house return, setpoint |
+| | `outside_temp` | Outdoor temperature the mixing follows, beside the pump |
 | | `valve` | Mixing valve position (optional) |
 | `solar_hx` | `valve`, `state_entity` | Whether the 3-way valve sends heat to the exchanger. Without either it is drawn as manual and idle |
 | | `pump` | Solar pump, also lights the collector |

@@ -69,7 +69,8 @@ charges the buffer; a `pump_group` mixes from the tank onto the house supply;
 the heat pump feeds that same supply directly; an optional `solar_hx` (solar
 collector → 3-way valve → solar tank → plate heat exchanger) joins it too.
 The circuits hang off one distributor; the dots on it run away from whichever
-source is running. See [Configuration](Configuration#hybrid-layout-fork).
+source is running. The solar row sits on top, where the collector is.
+See [Configuration](Configuration#hybrid-layout-fork).
 
 ## Mixing and matching
 

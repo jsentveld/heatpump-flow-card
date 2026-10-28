@@ -66,6 +66,7 @@ window.previewConfigs = {
       flow_temp: "sensor.mixed_flow_temperature",
       return_temp: "sensor.house_return_temperature",
       target_temp: "sensor.mixed_flow_target",
+      outside_temp: "sensor.outside_temperature",
     },
     solar_hx: {
       name: "Solar heat exchanger",

@@ -2634,7 +2634,7 @@ const SECTION_FIELDS = {
   pv: ["power", "battery", "grid", "battery_power", "grid_power", "wallbox", "house"],
   solar: ["collector_temp", "pump", "yield", "return_temp", "flow_temp"],
   wood_stove: ["state_entity", "status", "flow_temp", "return_temp"],
-  pump_group: ["state_entity", "pump", "valve", "flow_temp", "return_temp", "target_temp"],
+  pump_group: ["state_entity", "pump", "valve", "flow_temp", "return_temp", "target_temp", "outside_temp"],
   solar_hx: ["state_entity", "valve", "pump", "collector_temp", "tank_temp", "flow_temp", "return_temp"],
   buffer: ["top", "middle", "lower_middle", "bottom", "charge", "heater", "heater_power", "heater_temp", "heater_mode"],
   dhw: [
@@ -3270,9 +3270,11 @@ function buildScene(card) {
  * exchanger. The circuits hang off one distributor that any of the three
  * sources can feed:
  *
- *   wood stove ═> tank ═> pump group ═╗
- *                 heat pump ══════════╬═> circuits
- *   collector ─ valve ─ solar tank ─ heat exchanger ═╝
+ *   collector ─ valve ─ solar tank ─ heat exchanger ═╗
+ *   wood stove ═> tank ═> pump group ════════════════╬═> circuits
+ *                 heat pump ═════════════════════════╝
+ *
+ * The solar row sits on top: the collector is on the roof.
  *
  * Kept apart from buildScene so upstream merges never touch it.
  * ========================================================================= */
@@ -3328,6 +3330,12 @@ function drawPumpGroup(scene, box, cfg) {
       const hass = scene.hass();
       valveText.textContent = displayValue(hass, cfg.valve, "");
       valve.classList.toggle("hpfc-running", running(hass));
+    });
+  }
+
+  if (cfg.outside_temp) {
+    drawReadout(scene, group, box.x + (cfg.valve ? 110 : 66), baseY - 12, cfg.outside_temp.name || texts.outside, cfg.outside_temp, {
+      colorize: true,
     });
   }
 
@@ -3459,14 +3467,16 @@ function buildHybridScene(card) {
   const rightH = circuits.length ? circuits.length * circuitHeight + (circuits.length - 1) * gapY : 0;
   const colH = (showPg ? H.pg.h + gapY : 0) + hpHeight;
   const contentH = Math.max(rightH, colH, config.buffer ? 250 : 0, config.wood_stove ? H.ws.h : 0);
-  const colY = H.pad + (contentH - colH) / 2;
+  // the solar row sits above everything else
+  const rowY = H.pad;
+  const top = showSolar ? rowY + H.solarRow + 44 : H.pad;
+  const colY = top + (contentH - colH) / 2;
   const pgY = colY;
   const hpY = showPg ? colY + H.pg.h + gapY : colY;
   const bufH = Math.min(contentH, H.buffer.max);
-  const bufY = H.pad + (contentH - bufH) / 2;
+  const bufY = top + (contentH - bufH) / 2;
   const wsY = bufY + (bufH - H.ws.h) / 2;
-  const rowY = H.pad + contentH + 34;
-  const height = showSolar ? rowY + H.solarRow + H.pad : H.pad * 2 + contentH;
+  const height = top + contentH + H.pad;
 
   // ---- scene scaffolding ----------------------------------------------
   const svg = svgEl("svg", {
@@ -3564,7 +3574,7 @@ function buildHybridScene(card) {
   scene.flags.pumplessCircuits = true;
 
   // ---- circuits ---------------------------------------------------------
-  let cursorY = H.pad + (contentH - rightH) / 2;
+  let cursorY = top + (contentH - rightH) / 2;
   const consumers = circuits.map((cfg, index) => {
     const box = { x: rightX, y: cursorY, w: consumerWidth, h: circuitHeight };
     cursorY += circuitHeight + gapY;
@@ -3631,7 +3641,7 @@ function buildHybridScene(card) {
     const valveX = collectorBox.x + collectorBox.w + 34;
     const lineY = rowY + 44;
     const backY = rowY + H.solarRow - 26;
-    const laneY = rowY - 18;
+    const laneY = rowY + H.solarRow + 18;
     const collectorOn = collector.running;
     drawPipe(scene, {
       points: [[collectorBox.x + collectorBox.w, lineY], [valveX, lineY]],
