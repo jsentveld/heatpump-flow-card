@@ -21,7 +21,7 @@ changes shipped with the next tagged release.
 
 ## [Unreleased]
 
-### Added (private fork — jsentveld)
+### Added (fork — jsentveld)
 
 - **`wood_stove` section.** A second, hand-fed heat source (wood stove, pellet
   boiler, anything without a compressor) that plumbs into the buffer tank

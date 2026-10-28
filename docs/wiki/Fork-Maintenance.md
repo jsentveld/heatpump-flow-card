@@ -1,13 +1,14 @@
-# Fork maintenance (private fork — jsentveld)
+# Fork maintenance (jsentveld fork)
 
-This repository is a private fork of [Xerolux/heatpump-flow-card](https://github.com/Xerolux/heatpump-flow-card),
+This repository is a fork of [Xerolux/heatpump-flow-card](https://github.com/Xerolux/heatpump-flow-card),
 created to add one thing upstream doesn't have: a **wood stove** — a second,
 hand-fed heat source that plumbs into the buffer tank alongside the heat pump.
 Everything else (buffer tank, heating circuits, DHW, PV, solar) is used
 exactly as upstream ships it — nothing else was touched.
 
-**Why a fork instead of a PR:** kept private and under full control rather
-than waiting on an external maintainer's review timeline. Nothing here rules
+**Why a fork instead of a PR:** kept under full control rather than
+waiting on an external maintainer's review timeline. (GitHub doesn't allow a
+private fork of a public repo, so the fork itself is public.) Nothing here rules
 out proposing it upstream later — see "If you want to upstream it" below.
 
 **Why this is realistically maintainable:** the whole card is one plain
@@ -24,20 +25,24 @@ origin    https://github.com/jsentveld/heatpump-flow-card.git   (this fork)
 upstream  https://github.com/Xerolux/heatpump-flow-card.git     (Xerolux's real repo)
 ```
 
-The wood-stove work lives on the `feature/wood-stove-heat-source` branch,
-not `main` — this keeps `main` a clean mirror of upstream, which makes
-pulling updates a plain fast-forward instead of a merge every time.
+The wood-stove work is merged into `main` (2026-10-28). It has to be:
+HACS installs a custom repository from its default branch when it has no
+GitHub releases, and a fork doesn't inherit upstream's releases. So `main`
+is "our version" = upstream + wood stove, and that is what HA installs.
+The `feature/wood-stove-heat-source` branch is kept only as history.
+
+**Merging a PR in the GitHub UI:** on a fork, "Compare & pull request"
+targets Xerolux's repo by default. Set the base repository to
+`jsentveld/heatpump-flow-card` before creating the PR.
 
 ## Pulling an upstream update
 
 ```bash
 git checkout main
 git fetch upstream
-git merge upstream/main          # fast-forward, main tracks upstream exactly
-git push origin main
-
-git checkout feature/wood-stove-heat-source
-git merge main                   # this is the step that can conflict
+git merge upstream/main          # this is the step that can conflict
+# run the checks below, then:
+git push origin main             # HACS offers the update in HA
 ```
 
 If `npm run check:docs` or `npm test` (see below) still passes after the
@@ -115,7 +120,7 @@ open "tools/preview.html?layout=wood-stove"
 The `wood_stove` section as written is already fairly generic (any hand-fed,
 non-compressor heat source, not literally hardcoded to "wood"), which is
 probably what a maintainer would want before merging something like this.
-Opening it as a PR against `Xerolux/heatpump-flow-card` would mean rebasing
-`feature/wood-stove-heat-source` onto their `main` and opening the PR from
-that branch — nothing here needs to change first, this is purely a "when you
+Opening it as a PR against `Xerolux/heatpump-flow-card` would mean putting the
+wood-stove commits on a fresh branch off their `main` and opening the PR
+from that branch — nothing here needs to change first, this is purely a "when you
 decide to" step, not a blocker.
