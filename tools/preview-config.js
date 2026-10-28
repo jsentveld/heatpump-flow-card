@@ -74,9 +74,9 @@ window.previewConfigs = {
       tank_temp: "sensor.solar_tank_temperature",
     },
     circuits: [
-      { name: "Ground floor", type: "underfloor" },
-      { name: "First floor", type: "radiator", radiators: 4 },
       { name: "Second floor", type: "radiator", radiators: 4 },
+      { name: "First floor", type: "radiator", radiators: 4 },
+      { name: "Ground floor", type: "underfloor" },
     ],
   },
   "wood-stove": {

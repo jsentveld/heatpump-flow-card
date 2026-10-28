@@ -223,8 +223,9 @@ circuits:
 | | `pump` | Solar pump, also lights the collector |
 | | `collector_temp`, `tank_temp`, `flow_temp` | Readouts; `collector_name`, `tank_name` rename the parts |
 
-Circuits without a `pump`, `valve` or `entity` of their own count as running
-whenever any source runs.
+Circuits are drawn top to bottom in the order listed (put the top floor
+first). Circuits without a `pump`, `valve` or `entity` of their own count as
+running whenever any source runs, and get no pump symbol.
 
 ## Long form for any value
 

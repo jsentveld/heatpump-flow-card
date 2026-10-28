@@ -758,6 +758,10 @@ test("hybrid: wood stove feeds the tank, the heat pump feeds the house directly"
       tankFlowOn: !part("tank-flow").classList.contains("hpfc-stopped"),
       hxFlowOn: !part("solar-hx-flow").classList.contains("hpfc-stopped"),
       railParts: root.querySelectorAll('[data-part="flow-rail"]').length,
+      circuitPumps: Array.from(root.querySelectorAll(".hpfc-circuit")).reduce(
+        (sum, node) => sum + node.querySelectorAll(".hpfc-pump").length,
+        0
+      ),
     };
   });
   assert.equal(state.stove, true);
@@ -766,7 +770,9 @@ test("hybrid: wood stove feeds the tank, the heat pump feeds the house directly"
   assert.equal(state.heatpumpOn, false);
   assert.equal(state.hx, true);
   assert.equal(state.circuits, 3);
-  assert.deepEqual(state.fins, [0, 4, 4]);
+  assert.deepEqual(state.fins, [4, 4, 0]);
+  // only the pump group and the heat pump have pumps; the floors have none
+  assert.equal(state.circuitPumps, 0);
   assert.equal(state.tankFlowOn, true);
   // the 3-way valve is on "summer": nothing goes to the exchanger
   assert.equal(state.hxFlowOn, false);

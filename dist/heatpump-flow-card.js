@@ -2412,11 +2412,16 @@ function drawCircuit(scene, box, cfg) {
   // Pump, mixer and emitter along the bottom
   const baseY = box.y + box.h - 34;
   let cursor = box.x + 30;
-  drawPump(scene, group, cursor, baseY, cfg.pump, {
-    label: `${cfg.name || fallbackName} – ${texts.pump}`,
-    running,
-  });
-  cursor += 34;
+  // (fork) the hybrid layout draws no pump on a circuit that has none
+  if (cfg.pump || !scene.flags.pumplessCircuits) {
+    drawPump(scene, group, cursor, baseY, cfg.pump, {
+      label: `${cfg.name || fallbackName} – ${texts.pump}`,
+      running,
+    });
+    cursor += 34;
+  } else {
+    cursor -= 16;
+  }
 
   if (cfg.valve) {
     const valve = svgEl("g", { class: "hpfc-valve" });
@@ -3553,8 +3558,10 @@ function buildHybridScene(card) {
 
   const anySource = (hass) => sources.some((source) => source.running(hass));
   const activeSource = (hass) => sources.find((source) => source.running(hass)) || null;
-  // circuits without a state of their own run whenever the supply is live
+  // circuits without a state of their own run whenever the supply is live,
+  // and without a pump of their own they get no pump symbol
   scene.flags.heatpumpRunning = anySource;
+  scene.flags.pumplessCircuits = true;
 
   // ---- circuits ---------------------------------------------------------
   let cursorY = H.pad + (contentH - rightH) / 2;
