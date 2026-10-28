@@ -31,6 +31,13 @@ GitHub releases, and a fork doesn't inherit upstream's releases. So `main`
 is "our version" = upstream + wood stove, and that is what HA installs.
 The `feature/wood-stove-heat-source` branch is kept only as history.
 
+**Releases:** the fork inherits upstream's git tags (v1.8.3 …) but not
+its GitHub releases, and HACS installs the newest *tag* when there are no
+releases — which is upstream's code without the wood stove. So every
+change here gets its own GitHub release, named after the upstream version
+it is based on: `v1.8.3-wood.1`, `v1.8.3-wood.2`, … HACS then offers it as
+an update in HA.
+
 **Merging a PR in the GitHub UI:** on a fork, "Compare & pull request"
 targets Xerolux's repo by default. Set the base repository to
 `jsentveld/heatpump-flow-card` before creating the PR.
@@ -64,6 +71,7 @@ shift line numbers, but these identifiers are stable):
 | `normalizeConfig` | `wood_stove: null` added to the config object; `"wood_stove"` added to the `for (const key of [...])` loop |
 | `GEOMETRY` | `ws: { w, h }` and `hpGapWithWoodStove` added |
 | `buildScene` | `wsHeight`/`leftHeight` computed near `hpHeight`; `hpGapWithWoodStove` used in horizontal placement; `wsY` computed near `hpY`; `drawWoodStove(...)` called near the `drawHeatPump(...)` call; a new pipe-wiring block (comment: "A wood stove … plumbs into the buffer") right after the heat pump's own buffer pipes; two `drawBadge` calls for the wood stove's flow/return, right after the heat pump's own badges |
+| `buffer.lower_middle` | `lower_middle` added to both `buffer: [...]` field lists (runtime `SECTION_FIELDS` and editor `EDITOR_SECTIONS`), `temp_lower_middle` in `FIELD_ALIASES`, one key in `TEXTS.en`/`.de` and the editor labels; in `buildScene` the tank's `keys` list has four entries (default stays three); `drawTank`'s `positions` has a four-layer case |
 | CSS block | `.hpfc-ws-body`, `.hpfc-flame-outer`, `.hpfc-flame-inner`, `.hpfc-woodstove.hpfc-on …` — added right after the existing `.hpfc-aux.hpfc-on` rules |
 | `EDITOR_TEXTS.en` / `.de` | `show_wood_stove` and `wood_stove` keys added |
 | `EDITOR_SECTIONS` | one added key: `wood_stove: [...]` |

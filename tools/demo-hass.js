@@ -20,6 +20,7 @@ window.demoStates = {
 
   "sensor.buffer_top": { entity_id: "sensor.buffer_top", state: "46.8", attributes: { unit_of_measurement: "°C" } },
   "sensor.buffer_middle": { entity_id: "sensor.buffer_middle", state: "39.2", attributes: { unit_of_measurement: "°C" } },
+  "sensor.buffer_lower_middle": { entity_id: "sensor.buffer_lower_middle", state: "33.5", attributes: { unit_of_measurement: "°C" } },
   "sensor.buffer_bottom": { entity_id: "sensor.buffer_bottom", state: "28.6", attributes: { unit_of_measurement: "°C" } },
   "sensor.buffer_charge": { entity_id: "sensor.buffer_charge", state: "68", attributes: { unit_of_measurement: "%" } },
 

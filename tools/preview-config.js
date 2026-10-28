@@ -59,7 +59,7 @@ window.previewConfigs = {
       flow_temp: "sensor.wood_stove_flow_temperature",
       return_temp: "sensor.wood_stove_return_temperature",
     },
-    buffer,
+    buffer: { ...buffer, lower_middle: "sensor.buffer_lower_middle" },
     circuits: [radiators, underfloor],
   },
   extras: {

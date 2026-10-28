@@ -59,6 +59,7 @@ tank flow.
 | `name` | Heading above the tank |
 | `entity` | Tapping the tank operates this entity |
 | `top`, `middle`, `bottom` | Layer temperatures — they fill the tank with a gradient and print as pills |
+| `lower_middle` | (fork) Optional fourth layer between `middle` and `bottom` |
 | `charge` | Charge level, printed under the name |
 | `heater` | Electric element inside the tank — glows while it draws power, tap to operate |
 | `heater_power` | Its power, printed under the element |

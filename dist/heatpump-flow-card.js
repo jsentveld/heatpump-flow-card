@@ -1039,6 +1039,7 @@ const TEXTS = {
     charge: "Charge",
     top: "Top",
     middle: "Middle",
+    lower_middle: "Lower middle",
     bottom: "Bottom",
     battery: "Battery",
     grid: "Grid",
@@ -1086,6 +1087,7 @@ const TEXTS = {
     charge: "Ladung",
     top: "Oben",
     middle: "Mitte",
+    lower_middle: "Mitte unten",
     bottom: "Unten",
     battery: "Batterie",
     grid: "Netz",
@@ -1714,7 +1716,13 @@ function drawTank(scene, box, cfg, options) {
 
   const layers = opts.layers || [];
   const positions =
-    layers.length === 1 ? [0.5] : layers.length === 2 ? [0.26, 0.7] : [0.18, 0.47, 0.75];
+    layers.length === 1
+      ? [0.5]
+      : layers.length === 2
+        ? [0.26, 0.7]
+        : layers.length === 3
+          ? [0.18, 0.47, 0.75]
+          : [0.15, 0.36, 0.57, 0.78];
   layers.forEach((layer, index) => {
     if (layer.pill === false) return;
     const y = tank.y + tank.h * positions[index];
@@ -2605,7 +2613,7 @@ const SECTION_FIELDS = {
   pv: ["power", "battery", "grid", "battery_power", "grid_power", "wallbox", "house"],
   solar: ["collector_temp", "pump", "yield", "return_temp", "flow_temp"],
   wood_stove: ["state_entity", "status", "flow_temp", "return_temp"],
-  buffer: ["top", "middle", "bottom", "charge", "heater", "heater_power", "heater_temp", "heater_mode"],
+  buffer: ["top", "middle", "lower_middle", "bottom", "charge", "heater", "heater_power", "heater_temp", "heater_mode"],
   dhw: [
     "temp",
     "target_temp",
@@ -2638,6 +2646,7 @@ const FIELD_ALIASES = {
   return_temperature: "return_temp",
   temp_top: "top",
   temp_middle: "middle",
+  temp_lower_middle: "lower_middle",
   temp_bottom: "bottom",
   temperature: "temp",
   target: "target_temp",
@@ -2878,9 +2887,10 @@ function buildScene(card) {
 
   if (config.buffer) {
     const texts = textsFor(scene.hass());
-    const keys = ["top", "middle", "bottom"];
+    // lower_middle (fork): a fourth layer between middle and bottom.
+    const keys = ["top", "middle", "lower_middle", "bottom"];
     const configured = keys.filter((key) => config.buffer[key]);
-    const used = configured.length ? configured : keys;
+    const used = configured.length ? configured : ["top", "middle", "bottom"];
     drawTank(scene, { x: bufX, y: bufY, w: G.buffer.w, h: bufH }, config.buffer, {
       heater: config.buffer.heater,
       heaterPower: config.buffer.heater_power,
@@ -4020,6 +4030,7 @@ const EDITOR_TEXTS = {
     flow_rate: "Flow rate",
     top: "Top temperature",
     middle: "Middle temperature",
+    lower_middle: "Lower middle temperature",
     bottom: "Bottom temperature",
     charge: "Charge level",
     temp: "Temperature",
@@ -4109,6 +4120,7 @@ const EDITOR_TEXTS = {
     flow_rate: "Volumenstrom",
     top: "Temperatur oben",
     middle: "Temperatur Mitte",
+    lower_middle: "Temperatur Mitte unten",
     bottom: "Temperatur unten",
     charge: "Ladezustand",
     temp: "Temperatur",
@@ -4173,7 +4185,7 @@ const EDITOR_SECTIONS = {
     "defrost",
     "flow_rate",
   ],
-  buffer: ["top", "middle", "bottom", "charge", "heater", "heater_power", "heater_temp", "heater_mode"],
+  buffer: ["top", "middle", "lower_middle", "bottom", "charge", "heater", "heater_power", "heater_temp", "heater_mode"],
   dhw: [
     "temp",
     "target_temp",

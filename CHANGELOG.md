@@ -33,6 +33,10 @@ changes shipped with the next tagged release.
   configuration and layout preset is unaffected. See
   `docs/wiki/Fork-Maintenance.md` for why this lives in a fork instead of
   upstream, and how to carry it forward across `git merge upstream/main`.
+- **`buffer.lower_middle`.** An optional fourth tank layer between `middle`
+  and `bottom`, for tanks with four sensors. With four layers configured the
+  pills spread over the tank; with none configured the tank still shows the
+  usual three empty pills.
 
 ### Fixed
 

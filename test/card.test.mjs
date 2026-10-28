@@ -741,6 +741,23 @@ test("the second heat generator shows up when it engages", async () => {
   assert.equal(after, false);
 });
 
+test("a buffer tank can show a fourth, lower-middle layer", async () => {
+  await page.goto(`${previewUrl}?layout=wood-stove`);
+  const pills = await page.evaluate(() => {
+    const root = document.getElementById("card-wood-stove").shadowRoot;
+    return Array.from(root.querySelectorAll(".hpfc-tank-pill")).map((pill) => ({
+      text: pill.querySelector("text").textContent,
+      y: Number(pill.querySelector("rect").getAttribute("y")),
+    }));
+  });
+  assert.equal(pills.length, 4);
+  // top to bottom, in config order, without overlapping (pills are 24 px high)
+  assert.ok(pills[0].text.includes("46.8"));
+  assert.ok(pills[2].text.includes("33.5"));
+  assert.ok(pills[3].text.includes("28.6"));
+  for (let i = 1; i < pills.length; i += 1) assert.ok(pills[i].y - pills[i - 1].y >= 24);
+});
+
 test("a wood stove plumbs into the buffer alongside the heat pump", async () => {
   await page.goto(`${previewUrl}?layout=wood-stove`);
   const state = await page.evaluate(() => {
