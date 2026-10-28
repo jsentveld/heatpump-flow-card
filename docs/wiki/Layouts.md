@@ -24,6 +24,7 @@ anything in: every section you configure is drawn, every section you set to
 | `direct` | | | | | 1 |
 | `direct-dual` | | | | | 2 |
 | `direct-dhw` | | ● | | | 2 |
+| `hybrid` (fork) | ● | | | ● (via exchanger) | 3 |
 
 The two `compact` layouts also draw a shorter tank so the card fits into a
 narrow column. `circuits:` always wins over the number a layout brings, up to
@@ -60,6 +61,15 @@ Hot water and two circuits — no PV, no solar thermal.
 No buffer tank at all — the heat pump feeds the distributor directly.
 
 ![without a buffer tank](https://raw.githubusercontent.com/Xerolux/heatpump-flow-card/main/docs/images/advanced.png)
+
+## hybrid (fork)
+
+For plants where the heat pump does **not** charge the tank. A `wood_stove`
+charges the buffer; a `pump_group` mixes from the tank onto the house supply;
+the heat pump feeds that same supply directly; an optional `solar_hx` (solar
+collector → 3-way valve → solar tank → plate heat exchanger) joins it too.
+The circuits hang off one distributor; the dots on it run away from whichever
+source is running. See [Configuration](Configuration#hybrid-layout-fork).
 
 ## Mixing and matching
 

@@ -741,6 +741,55 @@ test("the second heat generator shows up when it engages", async () => {
   assert.equal(after, false);
 });
 
+test("hybrid: wood stove feeds the tank, the heat pump feeds the house directly", async () => {
+  await page.goto(`${previewUrl}?layout=hybrid`);
+  const state = await page.evaluate(() => {
+    const root = document.getElementById("card-hybrid").shadowRoot;
+    const part = (name) => root.querySelector(`[data-part="${name}"]`);
+    return {
+      stove: Boolean(root.querySelector(".hpfc-woodstove")),
+      pumpGroupOn: root.querySelector(".hpfc-pumpgroup").classList.contains("hpfc-running"),
+      heatpumpOn: root.querySelector(".hpfc-heatpump").classList.contains("hpfc-running"),
+      hx: Boolean(root.querySelector(".hpfc-solarhx")),
+      circuits: root.querySelectorAll(".hpfc-circuit").length,
+      fins: Array.from(root.querySelectorAll(".hpfc-circuit")).map(
+        (node) => node.querySelectorAll(".hpfc-fin").length
+      ),
+      tankFlowOn: !part("tank-flow").classList.contains("hpfc-stopped"),
+      hxFlowOn: !part("solar-hx-flow").classList.contains("hpfc-stopped"),
+      railParts: root.querySelectorAll('[data-part="flow-rail"]').length,
+    };
+  });
+  assert.equal(state.stove, true);
+  assert.equal(state.pumpGroupOn, true);
+  // 6 W is below the 100 W threshold: the heat pump stands by
+  assert.equal(state.heatpumpOn, false);
+  assert.equal(state.hx, true);
+  assert.equal(state.circuits, 3);
+  assert.deepEqual(state.fins, [0, 4, 4]);
+  assert.equal(state.tankFlowOn, true);
+  // the 3-way valve is on "summer": nothing goes to the exchanger
+  assert.equal(state.hxFlowOn, false);
+  assert.ok(state.railParts >= 3);
+
+  // the heat pump takes over: the pump group stops, the house supply stays live
+  const after = await page.evaluate(() => {
+    const card = document.getElementById("card-hybrid");
+    window.demoStates["binary_sensor.pump_group"].state = "off";
+    window.demoStates["sensor.hp_power_standby"].state = "1450";
+    card.hass = window.makeHass("en");
+    const root = card.shadowRoot;
+    return {
+      heatpumpOn: root.querySelector(".hpfc-heatpump").classList.contains("hpfc-running"),
+      tankFlowOn: !root.querySelector('[data-part="tank-flow"]').classList.contains("hpfc-stopped"),
+      circuitOn: !root.querySelector('[data-part="flow-circuit-2"]').classList.contains("hpfc-stopped"),
+    };
+  });
+  assert.equal(after.heatpumpOn, true);
+  assert.equal(after.tankFlowOn, false);
+  assert.equal(after.circuitOn, true);
+});
+
 test("a buffer tank can show a fourth, lower-middle layer", async () => {
   await page.goto(`${previewUrl}?layout=wood-stove`);
   const pills = await page.evaluate(() => {

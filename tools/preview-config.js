@@ -47,6 +47,38 @@ const underfloor = {
 };
 
 window.previewConfigs = {
+  hybrid: {
+    type: "custom:heatpump-flow-card",
+    layout: "hybrid",
+    title: "Wood stove charges the tank, the heat pump feeds the house directly",
+    heatpump: { ...heatpump, state_entity: undefined, mode: undefined, compressor: undefined, flow_rate: undefined, power: "sensor.hp_power_standby", power_threshold: 100 },
+    wood_stove: {
+      name: "Wood stove",
+      entity: "binary_sensor.wood_stove",
+      state_entity: "binary_sensor.wood_stove",
+      flow_temp: "sensor.wood_stove_flow_temperature",
+      return_temp: "sensor.buffer_bottom",
+    },
+    buffer: { ...buffer, charge: undefined, lower_middle: "sensor.buffer_lower_middle" },
+    pump_group: {
+      name: "Pump group",
+      pump: "binary_sensor.pump_group",
+      flow_temp: "sensor.mixed_flow_temperature",
+      return_temp: "sensor.house_return_temperature",
+      target_temp: "sensor.mixed_flow_target",
+    },
+    solar_hx: {
+      name: "Solar heat exchanger",
+      valve: "input_select.solar_valve",
+      collector_temp: "sensor.solar_collector_temperature",
+      tank_temp: "sensor.solar_tank_temperature",
+    },
+    circuits: [
+      { name: "Ground floor", type: "underfloor" },
+      { name: "First floor", type: "radiator", radiators: 4 },
+      { name: "Second floor", type: "radiator", radiators: 4 },
+    ],
+  },
   "wood-stove": {
     type: "custom:heatpump-flow-card",
     layout: "dual",

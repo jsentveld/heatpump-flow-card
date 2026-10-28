@@ -142,6 +142,26 @@ window.demoStates["sensor.wood_stove_return_temperature"] = {
   state: "52.1",
   attributes: { friendly_name: "Wood stove return", unit_of_measurement: "°C", device_class: "temperature" },
 };
+// Hybrid plant: the pump group mixes from the wood-fired tank onto the house
+// supply; the heat pump stands by; the solar exchanger is valved off.
+for (const [id, state, unit, name] of [
+  ["binary_sensor.pump_group", "on", "", "Pump group"],
+  ["sensor.mixed_flow_temperature", "41.2", "°C", "Mixed flow"],
+  ["sensor.house_return_temperature", "33.8", "°C", "House return"],
+  ["sensor.mixed_flow_target", "40.0", "°C", "Mixed flow target"],
+  ["sensor.hp_power_standby", "6", "W", "Heat pump power"],
+  ["sensor.solar_collector_temperature", "24.5", "°C", "Collector"],
+  ["sensor.solar_tank_temperature", "38.0", "°C", "Solar tank"],
+  ["input_select.solar_valve", "summer", "", "Solar 3-way valve"],
+]) {
+  window.demoStates[id] = {
+    entity_id: id,
+    state,
+    attributes: unit
+      ? { friendly_name: name, unit_of_measurement: unit, device_class: unit === "W" ? "power" : "temperature" }
+      : { friendly_name: name },
+  };
+}
 window.demoStates["switch.tank_heater"] = {
   entity_id: "switch.tank_heater",
   state: "on",

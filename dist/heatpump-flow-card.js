@@ -1040,6 +1040,12 @@ const TEXTS = {
     top: "Top",
     middle: "Middle",
     lower_middle: "Lower middle",
+    pump_group: "Pump group",
+    solar_hx: "Solar heat exchanger",
+    solar_tank: "Solar tank",
+    manual_valve: "3-way valve: manual",
+    winter: "3-way valve: winter",
+    summer: "3-way valve: summer",
     bottom: "Bottom",
     battery: "Battery",
     grid: "Grid",
@@ -1088,6 +1094,12 @@ const TEXTS = {
     top: "Oben",
     middle: "Mitte",
     lower_middle: "Mitte unten",
+    pump_group: "Pumpengruppe",
+    solar_hx: "Solar-Wärmetauscher",
+    solar_tank: "Solarspeicher",
+    manual_valve: "3-Wege-Ventil: manuell",
+    winter: "3-Wege-Ventil: Winter",
+    summer: "3-Wege-Ventil: Sommer",
     bottom: "Unten",
     battery: "Batterie",
     grid: "Netz",
@@ -1766,7 +1778,8 @@ function drawTank(scene, box, cfg, options) {
       values[values.length - 1] !== null && values[values.length - 1] !== undefined
         ? values[values.length - 1]
         : known[known.length - 1];
-    const middle = values.length === 3 && values[1] !== null ? values[1] : null;
+    const inner = values.slice(1, -1).filter((value) => value !== null);
+    const middle = values.length >= 3 && inner.length ? inner.reduce((a, b) => a + b, 0) / inner.length : null;
     const fallbackTop = colored ? tempColor(top) : null;
     const fallbackBottom = colored ? tempColor(bottom) : null;
     stops[0].setAttribute("stop-color", fallbackTop || "var(--hpfc-tank-warm)");
@@ -2251,7 +2264,7 @@ function drawEmitter(scene, group, area, type, options) {
     // radiator (default) - vertical fins between two rails
     const top = area.y + 14;
     const finHeight = area.h - 16;
-    const count = clamp(Math.floor(area.w / 18), 4, 9);
+    const count = opts.count ? clamp(Math.round(opts.count), 1, 12) : clamp(Math.floor(area.w / 18), 4, 9);
     const gap = (area.w - 8) / count;
     for (let i = 0; i < count; i++) {
       const fin = svgEl("rect", {
@@ -2438,6 +2451,7 @@ function drawCircuit(scene, box, cfg) {
   drawEmitter(scene, group, emitterArea, cfg.type || "radiator", {
     running,
     temp: cfg.flow_temp || cfg.room_temp,
+    count: Number(cfg.radiators) || 0,
   });
 
   scene.add(() => {
@@ -2592,6 +2606,8 @@ const LAYOUT_PRESETS = {
   direct: { sections: [], circuits: 1 },
   "direct-dual": { sections: [], circuits: 2 },
   "direct-dhw": { sections: ["dhw"], circuits: 2 },
+  // (fork) wood stove into the tank, heat pump straight onto the house supply
+  hybrid: { sections: ["buffer"], circuits: 3 },
 };
 
 const SECTION_FIELDS = {
@@ -2613,6 +2629,8 @@ const SECTION_FIELDS = {
   pv: ["power", "battery", "grid", "battery_power", "grid_power", "wallbox", "house"],
   solar: ["collector_temp", "pump", "yield", "return_temp", "flow_temp"],
   wood_stove: ["state_entity", "status", "flow_temp", "return_temp"],
+  pump_group: ["state_entity", "pump", "valve", "flow_temp", "return_temp", "target_temp"],
+  solar_hx: ["state_entity", "valve", "pump", "collector_temp", "tank_temp", "flow_temp", "return_temp"],
   buffer: ["top", "middle", "lower_middle", "bottom", "charge", "heater", "heater_power", "heater_temp", "heater_mode"],
   dhw: [
     "temp",
@@ -2656,7 +2674,7 @@ const FIELD_ALIASES = {
   mixer: "valve",
 };
 
-const PASSTHROUGH_KEYS = ["name", "entity", "type", "tap_action", "hold_action", "power_threshold", "threshold"];
+const PASSTHROUGH_KEYS = ["name", "entity", "type", "tap_action", "hold_action", "power_threshold", "threshold", "radiators", "tank_name", "collector_name"];
 
 /**
  * A climate or water_heater entity carries its temperatures in attributes, so
@@ -2719,6 +2737,8 @@ function normalizeConfig(raw) {
     buffer: null,
     dhw: null,
     wood_stove: null,
+    pump_group: null,
+    solar_hx: null,
     circuits: [],
   };
 
@@ -2726,7 +2746,7 @@ function normalizeConfig(raw) {
     config.heatpump.power_threshold = raw.heatpump.power_threshold;
   }
 
-  for (const key of ["pv", "solar", "buffer", "dhw", "wood_stove"]) {
+  for (const key of ["pv", "solar", "buffer", "dhw", "wood_stove", "pump_group", "solar_hx"]) {
     if (!sectionEnabled(raw, key, preset)) continue;
     const source = typeof raw[key] === "object" && raw[key] !== null ? raw[key] : {};
     config[key] = normalizeSection(source, SECTION_FIELDS[key]);
@@ -2775,6 +2795,7 @@ const GEOMETRY = {
 
 function buildScene(card) {
   const config = card._config;
+  if (config.layout === "hybrid") return buildHybridScene(card);
   const G = GEOMETRY;
   const consumerWidth = config.dense ? 268 : 304;
   const circuitHeight = config.dense ? 118 : 134;
@@ -3235,6 +3256,490 @@ function buildScene(card) {
 }
 
 /* =========================================================================
+ * Hybrid layout (fork - jsentveld)
+ *
+ * A plant where only a wood stove charges the buffer tank, a pump group
+ * mixes from the tank onto the house supply, and the heat pump feeds that
+ * same supply directly - never the tank. A solar thermal circuit (collector,
+ * manual 3-way valve, solar tank) can join the supply through a plate heat
+ * exchanger. The circuits hang off one distributor that any of the three
+ * sources can feed:
+ *
+ *   wood stove ═> tank ═> pump group ═╗
+ *                 heat pump ══════════╬═> circuits
+ *   collector ─ valve ─ solar tank ─ heat exchanger ═╝
+ *
+ * Kept apart from buildScene so upstream merges never touch it.
+ * ========================================================================= */
+
+/** Pump group: pump (and mixer), mixed flow, return and target. */
+function drawPumpGroup(scene, box, cfg) {
+  const texts = textsFor(scene.hass());
+  const group = drawPanel(scene, box, cfg.name || texts.pump_group, {
+    entity: cfg.entity,
+    tap_action: cfg.tap_action,
+    hold_action: cfg.hold_action,
+    titleWidth: box.w - 44,
+  });
+  group.classList.add("hpfc-pumpgroup");
+
+  const running = (hass) => {
+    if (cfg.state_entity && cfg.state_entity.entity) return isActive(hass, cfg.state_entity);
+    if (cfg.pump && cfg.pump.entity) return isActive(hass, cfg.pump);
+    if (cfg.entity) return isActive(hass, { entity: cfg.entity });
+    return false;
+  };
+  drawStatusDot(scene, group, box.x + box.w - 16, box.y + 16, (hass) => (running(hass) ? "on" : "off"));
+
+  const columns = [
+    cfg.flow_temp ? { label: texts.flow, field: cfg.flow_temp, colorize: true } : null,
+    cfg.return_temp ? { label: texts.ret, field: cfg.return_temp, colorize: true } : null,
+    cfg.target_temp ? { label: texts.target, field: cfg.target_temp } : null,
+  ].filter(Boolean);
+  const columnWidth = (box.w - 28) / Math.max(columns.length, 1);
+  columns.forEach((column, index) => {
+    drawReadout(scene, group, box.x + 14 + columnWidth * index, box.y + 46, column.label, column.field, {
+      colorize: column.colorize,
+      strong: index === 0,
+    });
+  });
+
+  const baseY = box.y + box.h - 30;
+  drawPump(scene, group, box.x + 30, baseY, cfg.pump, { label: `${cfg.name || texts.pump_group} – ${texts.pump}`, running });
+  if (cfg.valve) {
+    const cx = box.x + 66;
+    const valve = svgEl("g", { class: "hpfc-valve" });
+    valve.appendChild(
+      svgEl("path", {
+        class: "hpfc-valve-body",
+        d: `M ${cx - 12} ${baseY - 11} L ${cx} ${baseY} L ${cx - 12} ${baseY + 11} Z M ${cx + 12} ${baseY - 11} L ${cx} ${baseY} L ${cx + 12} ${baseY + 11} Z`,
+      })
+    );
+    const valveText = svgText(cx + 20, baseY + 5, "", { class: "hpfc-label" });
+    valve.appendChild(valveText);
+    group.appendChild(valve);
+    attachAction(scene, valve, { entity: cfg.valve.entity, tap_action: cfg.valve.tap_action, label: texts.mixer });
+    scene.add(() => {
+      const hass = scene.hass();
+      valveText.textContent = displayValue(hass, cfg.valve, "");
+      valve.classList.toggle("hpfc-running", running(hass));
+    });
+  }
+
+  scene.add(() => group.classList.toggle("hpfc-running", running(scene.hass())));
+  return { group, running };
+}
+
+/** Whether the 3-way valve sends the collector's heat to the exchanger. */
+function solarHxRunning(hass, cfg) {
+  if (cfg.state_entity && cfg.state_entity.entity) return isActive(hass, cfg.state_entity);
+  if (cfg.valve && cfg.valve.entity) {
+    const raw = String(rawValue(hass, cfg.valve) || "").toLowerCase();
+    if (["winter", "hx", "exchanger", "warmtewisselaar", "on", "open", "true"].some((word) => raw.includes(word))) {
+      return cfg.pump && cfg.pump.entity ? isActive(hass, cfg.pump) : true;
+    }
+    return false;
+  }
+  return false;
+}
+
+/** Plate heat exchanger between the solar (glycol) side and the house supply. */
+function drawSolarHx(scene, box, cfg) {
+  const texts = textsFor(scene.hass());
+  const group = drawPanel(scene, box, cfg.name || texts.solar_hx, {
+    entity: cfg.entity,
+    tap_action: cfg.tap_action,
+    hold_action: cfg.hold_action,
+    titleWidth: box.w - 44,
+  });
+  group.classList.add("hpfc-solarhx");
+  const running = (hass) => solarHxRunning(hass, cfg);
+  drawStatusDot(scene, group, box.x + box.w - 16, box.y + 16, (hass) => (running(hass) ? "on" : "off"));
+
+  // the plates: a stack of thin slabs, alternately warm and cold
+  const plates = { x: box.x + 14, y: box.y + 36, w: 44, h: 56 };
+  for (let i = 0; i < 7; i++) {
+    group.appendChild(
+      svgEl("rect", {
+        x: plates.x + i * 6.5,
+        y: plates.y,
+        width: 4,
+        height: plates.h,
+        rx: 1.5,
+        class: i % 2 === 0 ? "hpfc-plate hpfc-plate-warm" : "hpfc-plate hpfc-plate-cold",
+      })
+    );
+  }
+
+  const readouts = [
+    cfg.flow_temp ? { label: texts.flow, field: cfg.flow_temp, colorize: true } : null,
+    cfg.tank_temp ? { label: cfg.tank_name || texts.solar_tank, field: cfg.tank_temp, colorize: true } : null,
+  ].filter(Boolean);
+  readouts.slice(0, 2).forEach((item, index) => {
+    drawReadout(scene, group, box.x + 74 + index * 62, box.y + 46, item.label, item.field, {
+      colorize: item.colorize,
+      strong: index === 0,
+    });
+  });
+
+  const valveText = svgText(box.x + 74, box.y + box.h - 14, "", { class: "hpfc-label" });
+  group.appendChild(valveText);
+  if (cfg.valve && cfg.valve.entity) {
+    attachAction(scene, valveText, { entity: cfg.valve.entity, tap_action: cfg.valve.tap_action, label: texts.manual_valve });
+  }
+  scene.add(() => {
+    const hass = scene.hass();
+    const on = running(hass);
+    group.classList.toggle("hpfc-running", on);
+    valveText.textContent =
+      cfg.valve && cfg.valve.entity ? (on ? texts.winter : texts.summer) : texts.manual_valve;
+  });
+  return { group, running };
+}
+
+/** A 3-way valve symbol: two triangles on the line and one pointing down. */
+function drawThreeWayValve(scene, cx, cy, cfg) {
+  const group = svgEl("g", { class: "hpfc-valve hpfc-valve3" });
+  group.appendChild(
+    svgEl("path", {
+      class: "hpfc-valve-body",
+      d: `M ${cx - 12} ${cy - 10} L ${cx} ${cy} L ${cx - 12} ${cy + 10} Z M ${cx + 12} ${cy - 10} L ${cx} ${cy} L ${cx + 12} ${cy + 10} Z M ${cx - 10} ${cy - 12} L ${cx} ${cy} L ${cx + 10} ${cy - 12} Z`,
+    })
+  );
+  scene.root.appendChild(group);
+  if (cfg && cfg.valve && cfg.valve.entity) {
+    attachAction(scene, group, { entity: cfg.valve.entity, tap_action: cfg.valve.tap_action, label: textsFor(scene.hass()).manual_valve });
+  }
+  return group;
+}
+
+const HYBRID = {
+  pad: 14,
+  ws: { w: 200, h: 120 },
+  wsGap: 110,
+  buffer: { w: 126, max: 330 },
+  bufGap: 80,
+  colW: 210,
+  pg: { h: 140 },
+  hp: { h: 190 },
+  railGap: 70,
+  railStep: 30,
+  consumerGap: 50,
+  solarRow: 122,
+};
+
+function buildHybridScene(card) {
+  const config = card._config;
+  const H = HYBRID;
+  const texts = textsFor(card._hass);
+  const consumerWidth = 304;
+  const circuitHeight = 134;
+  const gapY = 16;
+  const hpHeight = config.heatpump.aux_heat || config.heatpump.aux_heat_power ? H.hp.h + 34 : H.hp.h;
+  const showPg = Boolean(config.buffer);
+  const showSolar = Boolean(config.solar_hx);
+
+  // ---- horizontal placement -------------------------------------------
+  const wsX = H.pad;
+  const bufX = config.wood_stove ? wsX + H.ws.w + H.wsGap : H.pad;
+  const colX = config.buffer ? bufX + H.buffer.w + H.bufGap : H.pad;
+  const colRight = colX + H.colW;
+  const flowRailX = colRight + H.railGap;
+  const returnRailX = flowRailX + H.railStep;
+  const rightX = returnRailX + H.consumerGap;
+  const width = rightX + consumerWidth + H.pad;
+
+  // ---- vertical placement ---------------------------------------------
+  const circuits = config.circuits;
+  const rightH = circuits.length ? circuits.length * circuitHeight + (circuits.length - 1) * gapY : 0;
+  const colH = (showPg ? H.pg.h + gapY : 0) + hpHeight;
+  const contentH = Math.max(rightH, colH, config.buffer ? 250 : 0, config.wood_stove ? H.ws.h : 0);
+  const colY = H.pad + (contentH - colH) / 2;
+  const pgY = colY;
+  const hpY = showPg ? colY + H.pg.h + gapY : colY;
+  const bufH = Math.min(contentH, H.buffer.max);
+  const bufY = H.pad + (contentH - bufH) / 2;
+  const wsY = bufY + (bufH - H.ws.h) / 2;
+  const rowY = H.pad + contentH + 34;
+  const height = showSolar ? rowY + H.solarRow + H.pad : H.pad * 2 + contentH;
+
+  // ---- scene scaffolding ----------------------------------------------
+  const svg = svgEl("svg", {
+    viewBox: `0 0 ${Math.round(width)} ${Math.round(height)}`,
+    preserveAspectRatio: "xMidYMid meet",
+    class: "hpfc-svg",
+    role: "img",
+  });
+  const defs = svgEl("defs");
+  const pipeLayer = svgEl("g", { class: "hpfc-pipes" });
+  const nodeLayer = svgEl("g", { class: "hpfc-nodes" });
+  svg.appendChild(defs);
+  svg.appendChild(pipeLayer);
+  svg.appendChild(nodeLayer);
+  const scene = {
+    card,
+    config,
+    svg,
+    defs,
+    pipeLayer,
+    root: nodeLayer,
+    updaters: [],
+    flags: {},
+    hass: () => card._hass,
+    add(fn) {
+      this.updaters.push(fn);
+    },
+  };
+
+  // ---- sources ----------------------------------------------------------
+  // Each source joins the distributor at a flow and a return height.
+  const sources = [];
+
+  let woodStove = null;
+  if (config.wood_stove) {
+    woodStove = drawWoodStove(scene, { x: wsX, y: wsY, w: H.ws.w, h: H.ws.h }, config.wood_stove);
+    scene.flags.woodStoveRunning = woodStove.running;
+  }
+
+  if (config.buffer) {
+    const keys = ["top", "middle", "lower_middle", "bottom"];
+    const configured = keys.filter((key) => config.buffer[key]);
+    const used = configured.length ? configured : ["top", "middle", "bottom"];
+    drawTank(scene, { x: bufX, y: bufY, w: H.buffer.w, h: bufH }, config.buffer, {
+      title: config.buffer.name || texts.buffer,
+      subtitle: config.buffer.charge ? { label: texts.charge, field: config.buffer.charge } : null,
+      entity: config.buffer.entity,
+      tap_action: config.buffer.tap_action,
+      layers: used.map((key) => ({ label: texts[key], field: config.buffer[key] })),
+    });
+  }
+
+  let pumpGroup = null;
+  if (showPg) {
+    const pgCfg = config.pump_group || {};
+    pumpGroup = drawPumpGroup(scene, { x: colX, y: pgY, w: H.colW, h: H.pg.h }, pgCfg);
+    sources.push({ running: pumpGroup.running, flowY: pgY + 40, returnY: pgY + H.pg.h - 30, flowTemp: pgCfg.flow_temp, returnTemp: pgCfg.return_temp });
+  }
+
+  const heatpump = drawHeatPump(scene, { x: colX, y: hpY, w: H.colW, h: hpHeight }, config.heatpump);
+  sources.push({
+    running: heatpump.running,
+    flowY: hpY + 66,
+    returnY: hpY + 130,
+    flowTemp: config.heatpump.flow_temp,
+    returnTemp: config.heatpump.return_temp,
+  });
+
+  let solarHx = null;
+  let collector = null;
+  const tankBox = { x: bufX + 10, y: rowY, w: 96, h: H.solarRow };
+  const collectorBox = { x: H.pad, y: rowY, w: 170, h: H.solarRow };
+  const hxBox = { x: colX, y: rowY, w: H.colW, h: H.solarRow };
+  if (showSolar) {
+    const cfg = config.solar_hx;
+    collector = drawSolar(
+      scene,
+      collectorBox,
+      { name: cfg.collector_name, collector_temp: cfg.collector_temp, pump: cfg.pump },
+    );
+    drawTank(scene, tankBox, {}, {
+      title: cfg.tank_name || texts.solar_tank,
+      radius: 18,
+      layers: [{ label: texts.solar_tank, field: cfg.tank_temp }],
+    });
+    solarHx = drawSolarHx(scene, hxBox, cfg);
+    sources.push({ running: solarHx.running, flowY: rowY + 40, returnY: rowY + H.solarRow - 30, flowTemp: cfg.flow_temp, returnTemp: null });
+  }
+
+  const anySource = (hass) => sources.some((source) => source.running(hass));
+  const activeSource = (hass) => sources.find((source) => source.running(hass)) || null;
+  // circuits without a state of their own run whenever the supply is live
+  scene.flags.heatpumpRunning = anySource;
+
+  // ---- circuits ---------------------------------------------------------
+  let cursorY = H.pad + (contentH - rightH) / 2;
+  const consumers = circuits.map((cfg, index) => {
+    const box = { x: rightX, y: cursorY, w: consumerWidth, h: circuitHeight };
+    cursorY += circuitHeight + gapY;
+    const drawn = drawCircuit(scene, box, cfg);
+    drawn.group.setAttribute("data-part", `circuit-${index + 1}`);
+    return { cfg, running: drawn.running, inletY: box.y + 40, outletY: box.y + box.h - 30 };
+  });
+
+  // ---- pipes: wood stove <-> tank ----------------------------------------
+  if (woodStove && config.buffer) {
+    const wsRight = wsX + H.ws.w;
+    const flowY = wsY + 40;
+    const returnY = wsY + H.ws.h - 30;
+    drawPipe(scene, {
+      points: [[wsRight, flowY], [wsRight + 76, flowY], [wsRight + 76, bufY + 48], [bufX, bufY + 48]],
+      role: "flow",
+      part: "wood-stove-flow",
+      from: config.wood_stove.flow_temp,
+      to: config.buffer.top,
+      active: woodStove.running,
+    });
+    drawPipe(scene, {
+      points: [[bufX, bufY + bufH - 40], [wsRight + 90, bufY + bufH - 40], [wsRight + 90, returnY], [wsRight, returnY]],
+      role: "return",
+      part: "wood-stove-return",
+      from: config.buffer.bottom,
+      to: config.wood_stove.return_temp || config.buffer.bottom,
+      active: woodStove.running,
+    });
+    if (config.wood_stove.flow_temp) {
+      drawBadge(scene, wsRight + 32, flowY - 16, config.wood_stove.flow_temp, { label: texts.flow });
+    }
+    if (config.wood_stove.return_temp) {
+      drawBadge(scene, wsRight + 32, returnY + 17, config.wood_stove.return_temp, { label: texts.ret });
+    }
+  }
+
+  // ---- pipes: tank <-> pump group ----------------------------------------
+  if (pumpGroup) {
+    const bufRight = bufX + H.buffer.w;
+    const pgCfg = config.pump_group || {};
+    const mid = bufRight + H.bufGap / 2;
+    drawPipe(scene, {
+      points: [[bufRight, bufY + 56], [mid - 10, bufY + 56], [mid - 10, pgY + 40], [colX, pgY + 40]],
+      role: "flow",
+      part: "tank-flow",
+      from: config.buffer.top,
+      to: pgCfg.flow_temp,
+      active: pumpGroup.running,
+    });
+    drawPipe(scene, {
+      points: [[colX, pgY + H.pg.h - 30], [mid + 10, pgY + H.pg.h - 30], [mid + 10, bufY + bufH - 56], [bufRight, bufY + bufH - 56]],
+      role: "return",
+      part: "tank-return",
+      from: pgCfg.return_temp,
+      to: config.buffer.bottom,
+      active: pumpGroup.running,
+    });
+  }
+
+  // ---- pipes: solar circuit (glycol side) --------------------------------
+  if (showSolar) {
+    const cfg = config.solar_hx;
+    const valveX = collectorBox.x + collectorBox.w + 34;
+    const lineY = rowY + 44;
+    const backY = rowY + H.solarRow - 26;
+    const laneY = rowY - 18;
+    const collectorOn = collector.running;
+    drawPipe(scene, {
+      points: [[collectorBox.x + collectorBox.w, lineY], [valveX, lineY]],
+      role: "solar",
+      from: cfg.collector_temp,
+      active: collectorOn,
+    });
+    drawPipe(scene, {
+      points: [[valveX, lineY], [tankBox.x, lineY]],
+      role: "solar",
+      from: cfg.collector_temp,
+      to: cfg.tank_temp,
+      active: (hass) => collectorOn(hass) && !solarHx.running(hass),
+    });
+    drawPipe(scene, {
+      points: [[valveX, lineY], [valveX, laneY], [colX - 30, laneY], [colX - 30, lineY], [colX, lineY]],
+      role: "solar",
+      part: "solar-hx-flow",
+      from: cfg.collector_temp,
+      active: solarHx.running,
+    });
+    drawPipe(scene, {
+      points: [[colX, backY], [tankBox.x + tankBox.w, backY]],
+      role: "return",
+      part: "solar-hx-return",
+      from: cfg.tank_temp,
+      active: solarHx.running,
+    });
+    drawPipe(scene, {
+      points: [[tankBox.x, backY], [collectorBox.x + collectorBox.w, backY]],
+      role: "return",
+      from: cfg.tank_temp,
+      active: collectorOn,
+    });
+    drawThreeWayValve(scene, valveX, lineY, cfg);
+  }
+
+  // ---- pipes: sources and circuits onto the distributor -----------------
+  for (const source of sources) {
+    drawPipe(scene, {
+      points: [[colRight, source.flowY], [flowRailX, source.flowY]],
+      role: "flow",
+      from: source.flowTemp,
+      active: source.running,
+    });
+    drawPipe(scene, {
+      points: [[returnRailX, source.returnY], [colRight, source.returnY]],
+      role: "return",
+      to: source.returnTemp,
+      active: source.running,
+    });
+  }
+  if (config.heatpump.flow_temp) {
+    drawBadge(scene, colRight + 34, hpY + 66 - 16, config.heatpump.flow_temp, { label: texts.flow });
+  }
+  if (config.heatpump.return_temp) {
+    drawBadge(scene, colRight + 34, hpY + 130 + 17, config.heatpump.return_temp, { label: texts.ret });
+  }
+
+  consumers.forEach((item, index) => {
+    drawPipe(scene, {
+      points: [[flowRailX, item.inletY], [rightX, item.inletY]],
+      role: "flow",
+      part: `flow-circuit-${index + 1}`,
+      from: item.cfg.flow_temp || (sources[0] && sources[0].flowTemp),
+      active: (hass) => anySource(hass) && item.running(hass),
+    });
+    drawPipe(scene, {
+      points: [[rightX, item.outletY], [returnRailX, item.outletY]],
+      role: "return",
+      part: `return-circuit-${index + 1}`,
+      from: item.cfg.return_temp,
+      active: (hass) => anySource(hass) && item.running(hass),
+    });
+  });
+
+  // The rails, cut into segments between connections. Only one source runs
+  // at a time, so each segment knows which way its water goes: away from the
+  // running source on the flow rail, back towards it on the return rail.
+  const drawRail = (x, role, sourceKey, consumerKey) => {
+    const ys = [...new Set([...sources.map((s) => s[sourceKey]), ...consumers.map((c) => c[consumerKey])])].sort(
+      (a, b) => a - b
+    );
+    const consumerYs = consumers.map((c) => c[consumerKey]);
+    for (let i = 0; i < ys.length - 1; i++) {
+      const top = ys[i];
+      const bottom = ys[i + 1];
+      drawPipe(scene, {
+        points: [[x, top], [x, bottom]],
+        role,
+        part: `${role}-rail`,
+        active: (hass) => {
+          const source = activeSource(hass);
+          if (!source || !consumers.some((c) => c.running(hass))) return false;
+          const lo = Math.min(source[sourceKey], ...consumerYs);
+          const hi = Math.max(source[sourceKey], ...consumerYs);
+          return top >= lo - 1 && bottom <= hi + 1;
+        },
+        reverse: (hass) => {
+          const source = activeSource(hass);
+          if (!source) return false;
+          const below = source[sourceKey] >= bottom;
+          // drawn downwards: flow moves away from the source, return towards it
+          return role === "flow" ? below : !below;
+        },
+      });
+    }
+  };
+  drawRail(flowRailX, "flow", "flowY", "inletY");
+  drawRail(returnRailX, "return", "returnY", "outletY");
+
+  return scene;
+}
+
+/* =========================================================================
  * Styles
  * ========================================================================= */
 
@@ -3454,6 +3959,10 @@ ha-card.hpfc-has-title { padding-top: 4px; }
 .hpfc-flame-outer, .hpfc-flame-inner { fill: var(--hpfc-muted); transition: fill 0.5s ease; }
 .hpfc-woodstove.hpfc-on .hpfc-flame-outer { fill: #fb923c; }
 .hpfc-woodstove.hpfc-on .hpfc-flame-inner { fill: #fde68a; animation: hpfc-glow 1.6s ease-in-out infinite; }
+.hpfc-plate-warm { fill: #f87171; }
+.hpfc-plate-cold { fill: #60a5fa; }
+.hpfc-solarhx:not(.hpfc-running) .hpfc-plate { opacity: 0.45; }
+.hpfc-valve3 .hpfc-valve-body { fill: var(--secondary-text-color, #757575); }
 @keyframes hpfc-glow { 0%, 100% { opacity: 0.65; } 50% { opacity: 1; } }
 
 /* electric element in a tank */
@@ -4050,6 +4559,7 @@ const EDITOR_TEXTS = {
     humidity: "Humidity",
     yaml_only: "Configured in YAML",
     layouts: {
+      hybrid: "Wood stove · tank · heat pump direct · 3 circuits",
       compact: "Compact · tank · 1 circuit",
       "compact-dual": "Compact · tank · 2 circuits",
       single: "Tank · 1 circuit",

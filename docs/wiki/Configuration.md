@@ -182,12 +182,49 @@ circuits:
 | `room_temp`, `target_temp`, `humidity` | Extra values — four columns are drawn |
 | `pump` | Circulation pump; also decides whether the circuit flows |
 | `valve` | Mixing valve, printed as a percentage under the symbol |
+| `radiators` | (fork) Number of radiators to draw, 1–12 (default: as many as fit) |
 
 **Is the circuit running?** `pump` → `valve` above 0 → `entity` → the heat pump
 state.
 
 Seven circuits are supported, which covers controllers that address their
 circuits A to G. An eighth entry is ignored rather than drawn off canvas.
+
+## hybrid layout (fork)
+
+```yaml
+layout: hybrid
+wood_stove: { ... }          # charges the tank
+buffer: { ... }              # top, middle, lower_middle, bottom
+pump_group:                  # tank -> house supply
+  name: Pump group
+  pump: binary_sensor.pump_running     # also decides whether it flows
+  flow_temp: sensor.mixed_flow
+  return_temp: sensor.house_return
+  target_temp: sensor.mixed_flow_target
+heatpump: { ... }            # straight onto the house supply, never the tank
+solar_hx:                    # optional
+  name: Solar heat exchanger
+  valve: input_select.solar_valve      # "winter" (or on/open) = to the exchanger
+  collector_temp: sensor.collector
+  tank_temp: sensor.solar_tank
+  tank_name: Solar tank
+circuits:
+  - { name: Ground floor, type: underfloor }
+  - { name: First floor, type: radiator, radiators: 4 }
+```
+
+| Section | Option | Description |
+| --- | --- | --- |
+| `pump_group` | `pump`, `state_entity` | Whether it runs - and so whether the tank feeds the house |
+| | `flow_temp`, `return_temp`, `target_temp` | Mixed flow, house return, setpoint |
+| | `valve` | Mixing valve position (optional) |
+| `solar_hx` | `valve`, `state_entity` | Whether the 3-way valve sends heat to the exchanger. Without either it is drawn as manual and idle |
+| | `pump` | Solar pump, also lights the collector |
+| | `collector_temp`, `tank_temp`, `flow_temp` | Readouts; `collector_name`, `tank_name` rename the parts |
+
+Circuits without a `pump`, `valve` or `entity` of their own count as running
+whenever any source runs.
 
 ## Long form for any value
 
