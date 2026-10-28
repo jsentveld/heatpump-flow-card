@@ -41,6 +41,9 @@ changes shipped with the next tagged release.
   and `bottom`, for tanks with four sensors. With four layers configured the
   pills spread over the tank; with none configured the tank still shows the
   usual three empty pills.
+- **README screenshot of the fork in use.** `docs/images/hybrid-wood-stove.png`
+  shows the `hybrid` layout on a live installation, linked from a short
+  "About this fork" note at the top of the README.
 
 ### Fixed
 

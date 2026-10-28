@@ -14,6 +14,20 @@ live values right where they belong on the drawing.
 
 ![Full layout](docs/images/full.png)
 
+> **About this fork (jsentveld).** This fork adds a `wood_stove` heat source,
+> a four-layer buffer (`buffer.lower_middle`) and a `hybrid` layout with
+> `pump_group` and `solar_hx` sections, for plants where a wood stove charges
+> the buffer tank and the heat pump feeds the house supply directly. Here it is
+> running on a real installation — wood stove and buffer, solar collector with a
+> manual 3-way valve and plate heat exchanger, a Vaillant aroTHERM plus, and
+> three floors (underfloor heating plus two radiator floors):
+>
+> ![Hybrid layout with wood stove, buffer, solar heat exchanger and heat pump](docs/images/hybrid-wood-stove.png)
+>
+> See the [changelog](CHANGELOG.md) for the details and
+> [`docs/wiki/Fork-Maintenance.md`](docs/wiki/Fork-Maintenance.md) for how the
+> fork tracks upstream.
+
 ## What it does
 
 * **Pipes carry temperatures.** Every pipe is coloured by the temperature it
