@@ -3471,8 +3471,9 @@ function buildHybridScene(card) {
   const rowY = H.pad;
   const top = showSolar ? rowY + H.solarRow + 44 : H.pad;
   const colY = top + (contentH - colH) / 2;
-  const pgY = colY;
-  const hpY = showPg ? colY + H.pg.h + gapY : colY;
+  // heat pump above the pump group, as they sit in the house
+  const hpY = colY;
+  const pgY = colY + hpHeight + gapY;
   const bufH = Math.min(contentH, H.buffer.max);
   const bufY = top + (contentH - bufH) / 2;
   const wsY = bufY + (bufH - H.ws.h) / 2;

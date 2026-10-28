@@ -45,6 +45,12 @@ changes shipped with the next tagged release.
   shows the `hybrid` layout on a live installation, linked from a short
   "About this fork" note at the top of the README.
 
+### Changed (fork — jsentveld)
+
+- **`hybrid`: heat pump above the pump group.** The two swap places in the
+  middle column, so the drawing follows the house: the pump group is on the
+  ground floor, the heat pump higher up. The tank-to-pump-group pipes follow.
+
 ### Fixed
 
 - The live IDM examples now wire circuit D to its real flow and room
