@@ -74,6 +74,12 @@ window.previewConfigs = {
       collector_temp: "sensor.solar_collector_temperature",
       tank_temp: "sensor.solar_tank_temperature",
     },
+    dhw: {
+      name: "Hot water",
+      temp: "sensor.dhw_temperature",
+      target_temp: "number.dhw_setpoint",
+      tap_flow: "binary_sensor.dhw_tap_flow",
+    },
     circuits: [
       { name: "Second floor", type: "radiator", radiators: 4 },
       { name: "First floor", type: "radiator", radiators: 4 },

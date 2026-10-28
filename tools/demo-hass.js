@@ -153,6 +153,7 @@ for (const [id, state, unit, name] of [
   ["sensor.solar_collector_temperature", "24.5", "°C", "Collector"],
   ["sensor.solar_tank_temperature", "38.0", "°C", "Solar tank"],
   ["input_select.solar_valve", "summer", "", "Solar 3-way valve"],
+  ["binary_sensor.dhw_tap_flow", "on", "", "Hot water tap flow"],
 ]) {
   window.demoStates[id] = {
     entity_id: id,

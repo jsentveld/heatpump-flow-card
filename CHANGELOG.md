@@ -45,6 +45,12 @@ changes shipped with the next tagged release.
   shows the `hybrid` layout on a live installation, linked from a short
   "About this fork" note at the top of the README.
 
+- **`hybrid`: hot water.** An optional `dhw` cylinder above the heat pump,
+  charged by it on its own pair of pipes; while it charges, the heat pump's
+  flow goes there and the house supply stops. With a `solar_hx`, a pre-heat
+  pipe runs from the solar tank into the cylinder and moves while the new
+  `dhw.tap_flow` reports water being drawn.
+
 ### Changed (fork — jsentveld)
 
 - **`hybrid`: heat pump above the pump group.** The two swap places in the

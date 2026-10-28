@@ -783,6 +783,8 @@ test("hybrid: wood stove feeds the tank, the heat pump feeds the house directly"
     const card = document.getElementById("card-hybrid");
     window.demoStates["binary_sensor.pump_group"].state = "off";
     window.demoStates["sensor.hp_power_standby"].state = "1450";
+    // hot water is up to temperature, so the heat pump's flow goes to the house
+    window.demoStates["sensor.dhw_temperature"].state = "56";
     card.hass = window.makeHass("en");
     const root = card.shadowRoot;
     return {
@@ -794,6 +796,39 @@ test("hybrid: wood stove feeds the tank, the heat pump feeds the house directly"
   assert.equal(after.heatpumpOn, true);
   assert.equal(after.tankFlowOn, false);
   assert.equal(after.circuitOn, true);
+});
+
+test("hybrid: the heat pump charges the hot water instead of the house, the solar tank pre-heats it", async () => {
+  await page.goto(`${previewUrl}?layout=hybrid`);
+  const before = await page.evaluate(() => {
+    const root = document.getElementById("card-hybrid").shadowRoot;
+    const on = (name) => !root.querySelector(`[data-part="${name}"]`).classList.contains("hpfc-stopped");
+    return {
+      dhw: Boolean(root.querySelector('[data-part="dhw"]')),
+      preheat: on("dhw-preheat"),
+      charge: on("dhw-charge-flow"),
+    };
+  });
+  assert.equal(before.dhw, true);
+  // a tap is open: water moves from the solar tank into the cylinder
+  assert.equal(before.preheat, true);
+  // the heat pump stands by: nothing charges
+  assert.equal(before.charge, false);
+
+  const after = await page.evaluate(() => {
+    const card = document.getElementById("card-hybrid");
+    window.demoStates["binary_sensor.pump_group"].state = "off";
+    window.demoStates["binary_sensor.dhw_tap_flow"].state = "off";
+    window.demoStates["sensor.hp_power_standby"].state = "1450";
+    card.hass = window.makeHass("en");
+    const root = card.shadowRoot;
+    const on = (name) => !root.querySelector(`[data-part="${name}"]`).classList.contains("hpfc-stopped");
+    return { charge: on("dhw-charge-flow"), preheat: on("dhw-preheat"), circuit: on("flow-circuit-2") };
+  });
+  // 52.4 °C against a 55 °C target: the cylinder takes the heat pump's flow
+  assert.equal(after.charge, true);
+  assert.equal(after.preheat, false);
+  assert.equal(after.circuit, false);
 });
 
 test("a buffer tank can show a fourth, lower-middle layer", async () => {

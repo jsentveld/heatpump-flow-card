@@ -70,7 +70,8 @@ the heat pump feeds that same supply directly; an optional `solar_hx` (solar
 collector → 3-way valve → solar tank → plate heat exchanger) joins it too.
 The circuits hang off one distributor; the dots on it run away from whichever
 source is running. The solar row sits on top, where the collector is; the heat pump sits above
-the pump group.
+the pump group. An optional `dhw` cylinder sits above the heat pump, charged by
+it, with the cold water pre-heated in the solar tank.
 See [Configuration](Configuration#hybrid-layout-fork).
 
 ## Mixing and matching

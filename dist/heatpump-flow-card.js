@@ -2639,6 +2639,7 @@ const SECTION_FIELDS = {
   buffer: ["top", "middle", "lower_middle", "bottom", "charge", "heater", "heater_power", "heater_temp", "heater_mode"],
   dhw: [
     "temp",
+    "tap_flow",
     "target_temp",
     "charge",
     "pump",
@@ -3435,6 +3436,7 @@ const HYBRID = {
   colW: 210,
   pg: { h: 140 },
   hp: { h: 190 },
+  dhw: { h: 118, gap: 40 },
   railGap: 70,
   railStep: 30,
   consumerGap: 50,
@@ -3451,6 +3453,7 @@ function buildHybridScene(card) {
   const hpHeight = config.heatpump.aux_heat || config.heatpump.aux_heat_power ? H.hp.h + 34 : H.hp.h;
   const showPg = Boolean(config.buffer);
   const showSolar = Boolean(config.solar_hx);
+  const showDhw = Boolean(config.dhw);
 
   // ---- horizontal placement -------------------------------------------
   const wsX = H.pad;
@@ -3465,15 +3468,16 @@ function buildHybridScene(card) {
   // ---- vertical placement ---------------------------------------------
   const circuits = config.circuits;
   const rightH = circuits.length ? circuits.length * circuitHeight + (circuits.length - 1) * gapY : 0;
-  const colH = (showPg ? H.pg.h + gapY : 0) + hpHeight;
+  const colH = (showDhw ? H.dhw.h + H.dhw.gap : 0) + hpHeight + (showPg ? gapY + H.pg.h : 0);
   const contentH = Math.max(rightH, colH, config.buffer ? 250 : 0, config.wood_stove ? H.ws.h : 0);
   // the solar row sits above everything else
   const rowY = H.pad;
   const top = showSolar ? rowY + H.solarRow + 44 : H.pad;
   const colY = top + (contentH - colH) / 2;
-  // heat pump above the pump group, as they sit in the house
-  const hpY = colY;
-  const pgY = colY + hpHeight + gapY;
+  // hot water, heat pump, pump group from top to bottom, as they sit in the house
+  const dhwY = colY;
+  const hpY = showDhw ? colY + H.dhw.h + H.dhw.gap : colY;
+  const pgY = hpY + hpHeight + gapY;
   const bufH = Math.min(contentH, H.buffer.max);
   const bufY = top + (contentH - bufH) / 2;
   const wsY = bufY + (bufH - H.ws.h) / 2;
@@ -3538,8 +3542,16 @@ function buildHybridScene(card) {
   }
 
   const heatpump = drawHeatPump(scene, { x: colX, y: hpY, w: H.colW, h: hpHeight }, config.heatpump);
+
+  let dhw = null;
+  if (showDhw) {
+    dhw = drawDhw(scene, { x: colX, y: dhwY, w: H.colW, h: H.dhw.h }, config.dhw);
+    dhw.group.setAttribute("data-part", "dhw");
+  }
+  // while the heat pump charges the hot water, its flow goes there, not to the house
+  const dhwCharging = (hass) => Boolean(dhw) && heatpump.running(hass) && dhw.running(hass);
   sources.push({
-    running: heatpump.running,
+    running: (hass) => heatpump.running(hass) && !dhwCharging(hass),
     flowY: hpY + 66,
     returnY: hpY + 130,
     flowTemp: config.heatpump.flow_temp,
@@ -3678,6 +3690,40 @@ function buildHybridScene(card) {
       active: collectorOn,
     });
     drawThreeWayValve(scene, valveX, lineY, cfg);
+  }
+
+  // ---- pipes: hot water ------------------------------------------------
+  // The heat pump charges the cylinder; the solar tank pre-heats the cold
+  // water on its way in, so that pipe only moves while a tap is open.
+  if (dhw) {
+    const dhwBottom = dhwY + H.dhw.h;
+    drawPipe(scene, {
+      points: [[colX + 70, hpY], [colX + 70, dhwBottom]],
+      role: "flow",
+      part: "dhw-charge-flow",
+      from: config.heatpump.flow_temp,
+      to: config.dhw.temp,
+      active: dhwCharging,
+    });
+    drawPipe(scene, {
+      points: [[colX + 140, dhwBottom], [colX + 140, hpY]],
+      role: "return",
+      part: "dhw-charge-return",
+      from: config.heatpump.return_temp,
+      active: dhwCharging,
+    });
+    if (showSolar) {
+      const cfg = config.solar_hx;
+      // out of the bottom of the solar tank, once across the solar lane
+      const outX = tankBox.x + tankBox.w / 2;
+      drawPipe(scene, {
+        points: [[outX, rowY + H.solarRow], [outX, dhwY + 40], [colX, dhwY + 40]],
+        role: "flow",
+        part: "dhw-preheat",
+        from: cfg.tank_temp,
+        active: config.dhw.tap_flow ? config.dhw.tap_flow : false,
+      });
+    }
   }
 
   // ---- pipes: sources and circuits onto the distributor -----------------

@@ -210,6 +210,11 @@ solar_hx:                    # optional
   collector_temp: sensor.collector
   tank_temp: sensor.solar_tank
   tank_name: Solar tank
+dhw:                         # optional: cylinder charged by the heat pump
+  name: Hot water
+  temp: sensor.dhw_temperature
+  target_temp: number.dhw_setpoint
+  tap_flow: binary_sensor.dhw_tap_flow # moves the pre-heat pipe from the solar tank
 circuits:
   - { name: Ground floor, type: underfloor }
   - { name: First floor, type: radiator, radiators: 4 }
@@ -224,6 +229,8 @@ circuits:
 | `solar_hx` | `valve`, `state_entity` | Whether the 3-way valve sends heat to the exchanger. Without either it is drawn as manual and idle |
 | | `pump` | Solar pump, also lights the collector |
 | | `collector_temp`, `tank_temp`, `flow_temp` | Readouts; `collector_name`, `tank_name` rename the parts |
+| `dhw` | `temp`, `target_temp`, `pump`, `charge`, `mode`, … | The usual hot-water options. Drawn above the heat pump; while it charges, the heat pump's flow goes to the cylinder and the house supply stops |
+| | `tap_flow` | Flow meter or binary sensor at the taps. With a `solar_hx`, the pre-heat pipe from the solar tank only moves while it is on |
 
 Circuits are drawn top to bottom in the order listed (put the top floor
 first). Circuits without a `pump`, `valve` or `entity` of their own count as
